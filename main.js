@@ -2,6 +2,7 @@ const { Configuration, OpenAIApi } = require("openai");
 const readline = require('readline');
 const crypto = require('crypto');
 const { getJson, setJson, sleep, getParameterCaseInsensitive } = require("./helpers");
+const getQuizWithExplanation = require("./getQuizWithExplanation");
 const showLoadingBar = require("./nodeLoadingBar");
 const dotenv = require('dotenv');
 
@@ -21,8 +22,9 @@ function setStore(data) {
 }
 function getStore() {
   const defaultStore = {
-    version: 0.02,
+    version: 0.03,
     allEntries: {}, //each key is a course/book name
+    excerptCache: {}, // each key is an excerpt title
   }
   const store = getJson("./store.json");
 
@@ -70,7 +72,7 @@ rl.on('SIGCONT', _ => rl.prompt()); //prompt will automatically resume the strea
 rl.on('close', _ => quitProcess()); //ctrl+c exits rl, exit proess too
 async function getUserInput(prompt) {
   let resolve = null, prom = new Promise(work => resolve = work);
-  rl.question(systemMessageColour + prompt + resetColours, resolve);
+  rl.question(systemMessageColour + prompt + "\n> " + resetColours, resolve);
   const userInput = await prom;
   if (userInput.toLowerCase() === "exit") {
     console.log(systemMessageColour + "Goodbye." + resetColours);
@@ -105,8 +107,31 @@ function parse(text) {
 const openai = new OpenAIApi(configuration);
 
 const makeQuiz = {
-  fromChatCompletion: async function (userInput) {
+  fromChatCompletion: async function (title, excerpt) {
+    const cache = getParameterCaseInsensitive(cacheStore.excerptCache, title);
+    if (cache) return cache;
 
+    let currTime = Date.now();
+
+    const seconds = 20;
+    showLoadingBar(0, 1, `Creating quiz...(this may take about ${seconds} seconds)`);
+
+    const limit = seconds * 1e3;
+    let s = setInterval(_ => {
+      let diff = Date.now() - currTime;
+      const diffT = Math.round(diff / 1e3);
+      if (diff >= limit) return clearInterval(s);
+      showLoadingBar(diff, limit, `Creating quiz...(this may take about ${seconds} seconds:[${diffT}/${seconds}])`)
+    }, 200);
+
+    cacheStore.excerptCache[title] = await getQuizWithExplanation(openai, title, excerpt);
+    clearInterval(s);
+    showLoadingBar(1, 1, "Quiz created!");
+
+    setTimeout(_ =>
+      console.log({ time_taken: (Date.now() - currTime) / 1e3 }, '\n\n\n')
+      , 1e3)
+    return cacheStore.excerptCache[title]
   },
   fromCompletion: async function (userInput, refresh = 1) {
     const bookOrCourseTitle = userInput;
@@ -147,7 +172,7 @@ const makeQuiz = {
 
               let theSwitch = { A: 0, B: 1, C: 2, D: 3, E: 4 } //for conversion of answer to indexOf correct answer
 
-              const answerID = theSwitch[A[8]];
+              const answerID = theSwitch[A[8]]; //A[8] is the answer's letter
               cacheStore.allEntries[bookOrCourseTitle][topic][Q] = {
                 question: Q,
                 options: [
@@ -157,7 +182,7 @@ const makeQuiz = {
                   [d],
                   [e]
                 ],
-                answer: answerID, //A[8] is the answer's letter
+                answer: answerID,
                 correct: 0, incorrect: 0 //accuracy for a subtopic because yes
               }
               cacheStore.allEntries[bookOrCourseTitle][topic][Q].options[answerID].push("<answer>"); // let specific response know its own answer so when scrambled we will still know
@@ -180,9 +205,9 @@ const makeQuiz = {
 //execution
 
 async function generateQuizFromExisting(attempts) {
-  let beginningPrompt = "Enter the name of a book OR a course title, or 'exit' to quit.\n";
+  let beginningPrompt = "Enter the name of a book OR a course title, or 'exit' to quit.";
   if (attempts === 0)
-    beginningPrompt += "E.G:Discrete Mathematics with Applications;Computer Science Algorithms;\n";
+    beginningPrompt += "\nE.G:Discrete Mathematics with Applications;Computer Science Algorithms;";
   const userInput = await getUserInput(beginningPrompt) //"Discrete Mathematics with Applications"
 
   const content = await makeQuiz.fromCompletion(userInput)
@@ -203,7 +228,7 @@ async function generateQuizFromExisting(attempts) {
       const correctAnswer = question.options[question.answer][0];
       const correctAnswerString = correctAnswerLetter + ") " + correctAnswer;
       const choices = options.map((a, i) => mapping[i] + ") " + a[0]).join('\n')
-      const thePrompt = `${question.question}\n\n${messageColour + choices + resetColours}\n\n`
+      const thePrompt = `${question.question}\n\n${messageColour + choices + resetColours}\n`
 
       const result = await getUserInput(thePrompt);
 
@@ -222,9 +247,69 @@ async function generateQuizFromExisting(attempts) {
 
       setStore(cacheStore);
     }
-  } catch {
+  } catch (e) {
+    console.error("Can't generate from existing", e);
     throw `Could not create a quiz on "${userInput}". `;
   }
+}
+
+async function generateQuizFromParagraph() {
+  const title = await getUserInput("Enter title for this topic paragraph or excerpt, or 'exit' to quit.");
+
+  const cache = getParameterCaseInsensitive(cacheStore.excerptCache, title);
+  if (cache) return cache;
+
+  const excerpt = await getUserInput("Enter topic paragraph or excerpt, or 'exit' to quit.") //"Discrete Mathematics with Applications"
+
+  const content = await makeQuiz.fromChatCompletion(title, excerpt);
+
+  setStore(cacheStore);
+
+
+  await sleep(500);
+  try {
+    const topic = content;
+    //console.log(topic,'1234',Object.values(topic),1232131223) //adf
+    const questions = Object.values(topic.questions);
+    //console.log(questions,54)
+    for (const question of questions) {
+      //console.log(questions,question) //adf
+      const options = question.options.scrambled()
+      const mapping = ["A", "B", "C", "D", "E"]
+      const correctAnswerIndex = options.findIndex(elem => elem.length === 2)
+      const correctAnswerLetter = mapping[correctAnswerIndex];
+      const correctAnswer = question.options[question.answer][0];
+      const correctAnswerString = correctAnswerLetter + ") " + correctAnswer;
+      const explanation = question.explanation || "";
+      const choices = options.map((a, i) => mapping[i] + ") " + a[0]).join('\n')
+      const thePrompt = `${question.question}\n\n${messageColour + choices + resetColours}\n`
+
+      const result = await getUserInput(thePrompt);
+
+      const isCorrect = (result.toLowerCase() === correctAnswer.toLowerCase()) || (result.toLowerCase() === correctAnswerLetter.toLowerCase()) || (result.toLowerCase() === correctAnswerString.toLowerCase())
+
+      if (isCorrect) question.correct++;
+      else question.incorrect++;
+
+      const responseColour = isCorrect ? correctColour : wrongColour;
+      if (isCorrect) {
+        console.log(responseColour + "Correct!" + resetColours);
+      } else {
+        console.log(responseColour + "Incorrect!" + resetColours);
+      }
+      console.log(answerColour + "Answer:\t" + resetColours + responseColour + correctAnswerString + resetColours);
+      if (!isCorrect && explanation !== "") {
+        console.log(answerColour + "Explanation:\t" + resetColours + messageColour + explanation + resetColours);
+      }
+      console.log("\n\n");
+
+      setStore(cacheStore);
+    }
+  } catch (e) {
+    console.error("Can't generate from excerpt", e);
+    throw `Could not generate a quiz from that excerpt`;
+  }
+
 }
 
 (async () => {
@@ -235,12 +320,19 @@ async function generateQuizFromExisting(attempts) {
       console.log(systemErrorColour + errorMsg + resetColours);
     errorMsg = "";
 
-    const optionsText = "What do you want to do? (enter option letters):\nA) Create quiz from existing book or course\nB) Create quiz from large text paragraph or excerpt\n";
-    const choice = await getUserInput(optionsText);
-    if (choice.length > 0) {
-      if (choice[0].toLowerCase() === "a") {
+    const optionsText = "What do you want to do? (enter option letters):\nA) Create quiz from existing book or course\nB) Create quiz from large text paragraph or excerpt";
+    const input = await getUserInput(optionsText);
+    if (input.length > 0) {
+      const choice = input[0].toLowerCase();
+      if (choice === "a") {
         try {
           await generateQuizFromExisting(attempts);
+        } catch (e) {
+          errorMsg = e;
+        }
+      } else if (choice === "b") {
+        try {
+          await generateQuizFromParagraph(attempts);
         } catch (e) {
           errorMsg = e;
         }
