@@ -204,13 +204,20 @@ const makeQuiz = {
 
 //execution
 
-async function generateQuizFromExisting(attempts) {
-  let beginningPrompt = "Enter the name of a book OR a course title, or 'exit' to quit.";
-  if (attempts === 0)
-    beginningPrompt += "\nE.G:Discrete Mathematics with Applications;Computer Science Algorithms;";
-  const userInput = await getUserInput(beginningPrompt) //"Discrete Mathematics with Applications"
+async function generateQuizFromBookorCourse(attempts, title) {
+  let content = "";
+  let userInput = "";
+  if (title) {
+    content = getParameterCaseInsensitive(cacheStore.allEntries, title);
+    if (!content) return false;
+  } else {
+    let beginningPrompt = "Enter the name of a book OR a course title, or 'exit' to quit.";
+    if (attempts === 0)
+      beginningPrompt += "\nE.G:Discrete Mathematics with Applications;Computer Science Algorithms;";
+    userInput = await getUserInput(beginningPrompt) //"Discrete Mathematics with Applications"
 
-  const content = await makeQuiz.fromCompletion(userInput)
+    content = await makeQuiz.fromCompletion(userInput)
+  }
 
   setStore(cacheStore);
   await sleep(500);
@@ -253,15 +260,65 @@ async function generateQuizFromExisting(attempts) {
   }
 }
 
-async function generateQuizFromParagraph() {
-  const title = await getUserInput("Enter title for this topic paragraph or excerpt, or 'exit' to quit.");
+async function viewCreatedExcerpts() {
+  const excerpts = Object.keys(cacheStore.excerptCache);
 
+  if (excerpts.length == 0) {
+    console.log("No excerpts have been created yet. Create one now!\n");
+  } else {
+    console.log("Existing excerpts:\n\n" + excerpts.map(excerpt => "- " + excerpt).join("\n"));
+    const title = await getUserInput("Choose an except to view.");
+    const cache = getParameterCaseInsensitive(cacheStore.excerptCache, title);
+    if (!cache) {
+      console.log("No excerpt with that title exists.\n");
+    } else {
+      console.log(cache.excerpt);
+    }
+  }
+}
+
+async function attemptExistingQuiz() {
+  const excerpts = Object.keys(cacheStore.excerptCache);
+  const entries = Object.keys(cacheStore.allEntries);
+
+  const allTopics = [...excerpts, ...entries];
+
+  if (allTopics.length == 0) {
+    console.log("No quizzes have been created yet. Create one now!\n");
+  } else {
+    console.log("Existing topics:\n\n" + allTopics.map(topic => "- " + topic).join("\n"));
+
+
+
+    const title = await getUserInput("Choose a topic to be quizzed on.");
+
+    if (excerpts.includes(title)) {
+      await generateQuizFromParagraph(title);
+    } else if (entries.includes(title)) {
+      await generateQuizFromBookorCourse(1, title);
+    } else
+      console.log("No topic with that title exists.\n");
+  }
+}
+
+async function generateQuizFromParagraph(title) {
+  let content = "";
+  if (title) {
+    content = getParameterCaseInsensitive(cacheStore.excerptCache, title);
+    if (!content) return false;
+  } else {
+
+    title = await getUserInput("Enter title for this topic paragraph or excerpt, or 'exit' to quit.");
+  }
   const cache = getParameterCaseInsensitive(cacheStore.excerptCache, title);
-  if (cache) return cache;
+  if (cache) {
+    content = cache;
+  } else {
 
-  const excerpt = await getUserInput("Enter topic paragraph or excerpt, or 'exit' to quit.") //"Discrete Mathematics with Applications"
+    const excerpt = await getUserInput("Enter topic paragraph or excerpt, or 'exit' to quit.") //"Discrete Mathematics with Applications"
 
-  const content = await makeQuiz.fromChatCompletion(title, excerpt);
+    content = await makeQuiz.fromChatCompletion(title, excerpt);
+  }
 
   setStore(cacheStore);
 
@@ -301,7 +358,7 @@ async function generateQuizFromParagraph() {
       if (!isCorrect && explanation !== "") {
         console.log(answerColour + "Explanation:\t" + resetColours + messageColour + explanation + resetColours);
       }
-      console.log("\n\n");
+      console.log("\n");
 
       setStore(cacheStore);
     }
@@ -320,19 +377,31 @@ async function generateQuizFromParagraph() {
       console.log(systemErrorColour + errorMsg + resetColours);
     errorMsg = "";
 
-    const optionsText = "What do you want to do? (enter option letters):\nA) Create quiz from existing book or course\nB) Create quiz from large text paragraph or excerpt";
+    const optionsText = "What do you want to do? (enter option letters):\nA) Create quiz from popular book or course\nB) Create quiz from large text paragraph or excerpt\nC) View created excerpt\nD) Attempt quiz from existing topics";
     const input = await getUserInput(optionsText);
     if (input.length > 0) {
       const choice = input[0].toLowerCase();
       if (choice === "a") {
         try {
-          await generateQuizFromExisting(attempts);
+          await generateQuizFromBookorCourse(attempts);
         } catch (e) {
           errorMsg = e;
         }
       } else if (choice === "b") {
         try {
-          await generateQuizFromParagraph(attempts);
+          await generateQuizFromParagraph();
+        } catch (e) {
+          errorMsg = e;
+        }
+      } else if (choice === "c") {
+        try {
+          await viewCreatedExcerpts();
+        } catch (e) {
+          errorMsg = e;
+        }
+      } else if (choice === "d") {
+        try {
+          await attemptExistingQuiz();
         } catch (e) {
           errorMsg = e;
         }
