@@ -49,7 +49,8 @@ const correctColour = colours.lightgreen
 const wrongColour = colours.lightred
 const userColour = colours.lightwhite
 const messageColour = colours.lightcyan
-const systemColour = colours.lightyellow
+const systemMessageColour = colours.lightyellow
+const systemErrorColour = colours.lightred
 const answerColour = colours.lightmagenta
 const resetColours = '\x1b[0m'
 
@@ -69,10 +70,10 @@ rl.on('SIGCONT', _ => rl.prompt()); //prompt will automatically resume the strea
 rl.on('close', _ => quitProcess()); //ctrl+c exits rl, exit proess too
 async function getUserInput(prompt) {
   let resolve = null, prom = new Promise(work => resolve = work);
-  rl.question(systemColour + prompt + resetColours, resolve);
+  rl.question(systemMessageColour + prompt + resetColours, resolve);
   const userInput = await prom;
   if (userInput.toLowerCase() === "exit") {
-    console.log(systemColour + "Goodbye." + resetColours);
+    console.log(systemMessageColour + "Goodbye." + resetColours);
     quitProcess();
   }
   return userInput;
@@ -231,10 +232,10 @@ async function generateQuizFromExisting(attempts) {
   let errorMsg = "";
   while (true) {
     if (errorMsg)
-      console.log(systemColour + errorMsg + resetColours);
+      console.log(systemErrorColour + errorMsg + resetColours);
     errorMsg = "";
 
-    const optionsText = "What do you want to do? (enter option letters):\nA) Create quiz from existing book or course\nB) Create quiz from large text paragraph or excerpt";
+    const optionsText = "What do you want to do? (enter option letters):\nA) Create quiz from existing book or course\nB) Create quiz from large text paragraph or excerpt\n";
     const choice = await getUserInput(optionsText);
     if (choice.length > 0) {
       if (choice[0].toLowerCase() === "a") {
