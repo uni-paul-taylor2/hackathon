@@ -103,132 +103,151 @@ function parse(text) {
 }
 const openai = new OpenAIApi(configuration);
 
+const makeQuiz = {
+  fromChatCompletion: async function (userInput) {
 
-async function makeQuiz(userInput, refresh = 1) {
-  const bookOrCourseTitle = userInput;
-  // if cache exists, return it
-  const cache = getParameterCaseInsensitive(cacheStore.allEntries, bookOrCourseTitle);
-  if (cache) return cache;
+  },
+  fromCompletion: async function (userInput, refresh = 1) {
+    const bookOrCourseTitle = userInput;
+    // if cache exists, return it
+    const cache = getParameterCaseInsensitive(cacheStore.allEntries, bookOrCourseTitle);
+    if (cache) return cache;
 
-  //else begin caching below
-  let currTime = Date.now()
-  cacheStore.allEntries[bookOrCourseTitle] = {} //each key is a unique topic
+    //else begin caching below
+    let currTime = Date.now()
+    cacheStore.allEntries[bookOrCourseTitle] = {} //each key is a unique topic
 
-  const numQuestions = 3;
-  let loadingBarCurr = 0;
-  for (let i = 0; i < refresh; i++) { //fill topics
-    showLoadingBar(loadingBarCurr, 1, "Creating quiz...");
-    const result = await createCompletion(`What are the topics offered by the book:\n"${bookOrCourseTitle}"\n`)
+    const numQuestions = 3;
+    let loadingBarCurr = 0;
+    for (let i = 0; i < refresh; i++) { //fill topics
+      showLoadingBar(loadingBarCurr, 1, "Creating quiz...");
+      const result = await createCompletion(`What are the topics offered by the book:\n"${bookOrCourseTitle}"\n`)
 
-    const { text } = result.data.choices[0];
-    var list = text.split('\n')
-      .filter(a => !isNaN(a[0]))
-      .map(a => a.substring(1 + a.indexOf(' ')));
+      const { text } = result.data.choices[0];
+      var list = text.split('\n')
+        .filter(a => !isNaN(a[0]))
+        .map(a => a.substring(1 + a.indexOf(' ')));
 
-    const loadingBarMax = list.length * refresh * refresh;
-    for (const topic of list) {
-      for (let i = 0; i < refresh; i++) {
-        loadingBarCurr++;
-        showLoadingBar(loadingBarCurr, loadingBarMax, "Creating quiz...");
-        if (cacheStore.allEntries[bookOrCourseTitle][topic]) continue; //don't repeat for requests
+      const loadingBarMax = list.length * refresh * refresh;
+      for (const topic of list) {
+        for (let i = 0; i < refresh; i++) {
+          loadingBarCurr++;
+          showLoadingBar(loadingBarCurr, loadingBarMax, "Creating quiz...");
+          if (cacheStore.allEntries[bookOrCourseTitle][topic]) continue; //don't repeat for requests
 
-        cacheStore.allEntries[bookOrCourseTitle][topic] = {}; //each key is a unique question
+          cacheStore.allEntries[bookOrCourseTitle][topic] = {}; //each key is a unique question
 
-        parse((await createCompletion(
-          `using the following format below, write ${numQuestions} multiple choice questions(with the answers) on the topic: "${topic}"\n- The Question\nA) option\nB) option\nC) option\nD) option\nE) option\n- The Answer\n\n`
-        )).data.choices[0].text)
-          .forEach(question => {
-            let [Q, a, b, c, d, e, A] = question;
-            if (cacheStore.allEntries[bookOrCourseTitle][topic][Q]) return null; //don't repeat for same questions
+          parse((await createCompletion(
+            `using the following format below, write ${numQuestions} multiple choice questions(with the answers) on the topic: "${topic}"\n- The Question\nA) option\nB) option\nC) option\nD) option\nE) option\n- The Answer\n\n`
+          )).data.choices[0].text)
+            .forEach(question => {
+              let [Q, a, b, c, d, e, A] = question;
+              if (cacheStore.allEntries[bookOrCourseTitle][topic][Q]) return null; //don't repeat for same questions
 
-            let theSwitch = { A: 0, B: 1, C: 2, D: 3, E: 4 } //for conversion of answer to indexOf correct answer
+              let theSwitch = { A: 0, B: 1, C: 2, D: 3, E: 4 } //for conversion of answer to indexOf correct answer
 
-            const answerID = theSwitch[A[8]];
-            cacheStore.allEntries[bookOrCourseTitle][topic][Q] = {
-              question: Q,
-              options: [
-                [a],
-                [b],
-                [c],
-                [d],
-                [e]
-              ],
-              answer: answerID, //A[8] is the answer's letter
-              correct: 0, incorrect: 0 //accuracy for a subtopic because yes
-            }
-            cacheStore.allEntries[bookOrCourseTitle][topic][Q].options[answerID].push("<answer>"); // let specific response know its own answer so when scrambled we will still know
-          })
+              const answerID = theSwitch[A[8]];
+              cacheStore.allEntries[bookOrCourseTitle][topic][Q] = {
+                question: Q,
+                options: [
+                  [a],
+                  [b],
+                  [c],
+                  [d],
+                  [e]
+                ],
+                answer: answerID, //A[8] is the answer's letter
+                correct: 0, incorrect: 0 //accuracy for a subtopic because yes
+              }
+              cacheStore.allEntries[bookOrCourseTitle][topic][Q].options[answerID].push("<answer>"); // let specific response know its own answer so when scrambled we will still know
+            })
+        }
       }
+
+
     }
+    showLoadingBar(loadingBarCurr, loadingBarCurr, "Quiz created!");
 
-
+    setTimeout(_ =>
+      console.log({ time_taken: (Date.now() - currTime) / 1e3 }, '\n\n\n')
+      , 1e3)
+    return cacheStore.allEntries[bookOrCourseTitle]
   }
-  showLoadingBar(loadingBarCurr, loadingBarCurr, "Quiz created!");
-
-  setTimeout(_ =>
-    console.log({ time_taken: (Date.now() - currTime) / 1e3 }, '\n\n\n')
-    , 1e3)
-  return cacheStore.allEntries[bookOrCourseTitle]
 };
 
 
 //execution
+
+async function generateQuizFromExisting(attempts) {
+  let beginningPrompt = "Enter the name of a book OR a course title, or 'exit' to quit.\n";
+  if (attempts === 0)
+    beginningPrompt += "E.G:Discrete Mathematics with Applications;Computer Science Algorithms;\n";
+  const userInput = await getUserInput(beginningPrompt) //"Discrete Mathematics with Applications"
+
+  const content = await makeQuiz.fromCompletion(userInput)
+
+  setStore(cacheStore);
+  await sleep(500);
+  try {
+    const topic = Object.values(content).random()
+    //console.log(topic,'1234',Object.values(topic),1232131223) //adf
+    const questions = Object.values(topic).scrambled()
+    //console.log(questions,54)
+    for (const question of questions) {
+      //console.log(questions,question) //adf
+      const options = question.options.scrambled()
+      const mapping = ["A", "B", "C", "D", "E"]
+      const correctAnswerIndex = options.findIndex(elem => elem.length === 2)
+      const correctAnswerLetter = mapping[correctAnswerIndex];
+      const correctAnswer = question.options[question.answer][0];
+      const correctAnswerString = correctAnswerLetter + ") " + correctAnswer;
+      const choices = options.map((a, i) => mapping[i] + ") " + a[0]).join('\n')
+      const thePrompt = `${question.question}\n\n${messageColour + choices + resetColours}\n\n`
+
+      const result = await getUserInput(thePrompt);
+
+      const isCorrect = (result.toLowerCase() === correctAnswer.toLowerCase()) || (result.toLowerCase() === correctAnswerLetter.toLowerCase()) || (result.toLowerCase() === correctAnswerString.toLowerCase())
+
+      if (isCorrect) question.correct++;
+      else question.incorrect++;
+
+      const responseColour = isCorrect ? correctColour : wrongColour;
+      if (isCorrect) {
+        console.log(responseColour + "Correct!" + resetColours);
+      } else {
+        console.log(responseColour + "Incorrect!" + resetColours);
+      }
+      console.log(answerColour + "Answer:\t" + resetColours + responseColour + correctAnswerString + resetColours + "\n\n")
+
+      setStore(cacheStore);
+    }
+  } catch {
+    throw `Could not create a quiz on "${userInput}". `;
+  }
+}
+
 (async () => {
   let attempts = 0;
-  let hadError = false;
-  let prevTopic = "";
+  let errorMsg = "";
   while (true) {
-    let beginningPrompt = "";
-    if (hadError)
-      beginningPrompt += `Could not create a quiz on "${prevTopic}". `;
-    beginningPrompt += "Enter the name of a book OR a course title, or 'exit' to quit.\n";
-    if (attempts === 0)
-      beginningPrompt += "E.G:Discrete Mathematics with Applications;Computer Science Algorithms;\n";
-    const userInput = await getUserInput(beginningPrompt) //"Discrete Mathematics with Applications"
-    attempts++;
-    hadError = false;
-    prevTopic = userInput;
+    if (errorMsg)
+      console.log(systemColour + errorMsg + resetColours);
+    errorMsg = "";
 
-    const content = await makeQuiz(userInput)
-
-    setStore(cacheStore);
-    await sleep(500);
-    try {
-      const topic = Object.values(content).random()
-      //console.log(topic,'1234',Object.values(topic),1232131223) //adf
-      const questions = Object.values(topic).scrambled()
-      //console.log(questions,54)
-      for (const question of questions) {
-        //console.log(questions,question) //adf
-        const options = question.options.scrambled()
-        const mapping = ["A", "B", "C", "D", "E"]
-        const correctAnswerIndex = options.findIndex(elem => elem.length === 2)
-        const correctAnswerLetter = mapping[correctAnswerIndex];
-        const correctAnswer = question.options[question.answer][0];
-        const correctAnswerString = correctAnswerLetter + ") " + correctAnswer;
-        const choices = options.map((a, i) => mapping[i] + ") " + a[0]).join('\n')
-        const thePrompt = `${question.question}\n\n${messageColour + choices + resetColours}\n\n`
-
-        const result = await getUserInput(thePrompt);
-
-        const isCorrect = (result.toLowerCase() === correctAnswer.toLowerCase()) || (result.toLowerCase() === correctAnswerLetter.toLowerCase()) || (result.toLowerCase() === correctAnswerString.toLowerCase())
-
-        if (isCorrect) question.correct++;
-        else question.incorrect++;
-
-        const responseColour = isCorrect ? correctColour : wrongColour;
-        if (isCorrect) {
-          console.log(responseColour + "Correct!" + resetColours);
-        } else {
-          console.log(responseColour + "Incorrect!" + resetColours);
+    const optionsText = "What do you want to do? (enter option letters):\nA) Create quiz from existing book or course\nB) Create quiz from large text paragraph or excerpt";
+    const choice = await getUserInput(optionsText);
+    if (choice.length > 0) {
+      if (choice[0].toLowerCase() === "a") {
+        try {
+          await generateQuizFromExisting(attempts);
+        } catch (e) {
+          errorMsg = e;
         }
-        console.log(answerColour + "Answer:\t" + resetColours + responseColour + correctAnswerString + resetColours + "\n\n")
-
-        setStore(cacheStore);
+      } else {
+        errorMsg = "This choice is not available.";
       }
-    } catch {
-      hadError = true;
     }
+
+    attempts++;
   }
 })()
-//makeQuiz(userInput).then(console.log)
