@@ -48,7 +48,7 @@ async function QUESTION(prompt){
 
 
 const configuration = new Configuration({
-  apiKey: "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",
+  apiKey: "api-key",
 })
 async function createCompletion(prompt){
   return await openai.createCompletion({
