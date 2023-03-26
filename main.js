@@ -127,19 +127,18 @@ async function makeQuiz(userInput,refresh=1){
     let userInput = await QUESTION('Enter the name of a book OR a course title\n') //"Discrete Mathematics with Applications"
     let content = await makeQuiz(userInput)
     let topic = Object.values(content).random()
-    //console.log(topic,'1234',Object.values(topic),1232131223) //adf
     let questions = Object.values(topic).scrambled()
-    //console.log(questions,54)
     for(let question of questions){
-      //console.log(questions,question) //adf
       let options=question.options.scrambled()
-      let mapping=['A) ','B) ','C) ','D) ','E) ']
+      let mapping=['A) ','B) ','C) ','D) ','E) '], theSwitch={A:0, B:1, C:2, D:3, E:4}
       let choices=options.map((a,i)=>mapping[i]+a).join('\n')
       let thePrompt=`${  question.question  }\n\n${  messageColour+choices+reset  }\n\n`
       
       let correctAnswer=question.options[question.answer]
       let result = await QUESTION(thePrompt)
-      let isCorrect=result===correctAnswer
+      let isCorrect= //either the letter of the answer OR the whole string of the answer
+        options[ theSwitch[result.toUpperCase()] ]===correctAnswer
+        || result===correctAnswer;
       if(isCorrect) question.correct++;
       else question.incorrect++;
       
