@@ -5,7 +5,7 @@ Array.prototype.random=function(justInt){
 }
 Array.prototype.scrambled=function(){
   let temp=[...this], arr=[]
-  while(temp.length>0) arr.push( temp.splice(temp.random(true),1) );
+  while(temp.length>0) arr.push( temp.splice(temp.random(true),1)[0] );
   return arr
 }
 
@@ -48,7 +48,7 @@ async function QUESTION(prompt){
 
 
 const configuration = new Configuration({
-  apiKey: "api-key",
+  apiKey: "open-api-key",
 })
 async function createCompletion(prompt){
   return await openai.createCompletion({
@@ -126,13 +126,12 @@ async function makeQuiz(userInput,refresh=1){
   while(true){
     let userInput = await QUESTION('Enter the name of a book OR a course title\n') //"Discrete Mathematics with Applications"
     let content = await makeQuiz(userInput)
-    console.log(content,'hmm')
     let topic = Object.values(content).random()
-    console.log(topic,'1234')
+    //console.log(topic,'1234',Object.values(topic),1232131223) //adf
     let questions = Object.values(topic).scrambled()
-    console.log(questions,54)
+    //console.log(questions,54)
     for(let question of questions){
-      console.log(questions,question)
+      //console.log(questions,question) //adf
       let options=question.options.scrambled()
       let mapping=['A) ','B) ','C) ','D) ','E) ']
       let choices=options.map((a,i)=>mapping[i]+a).join('\n')
