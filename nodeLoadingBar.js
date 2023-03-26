@@ -3,7 +3,7 @@ async function showLoadingBar(currentProgress, totalProgress, word = "complete")
   
   let text = yellow+`[${ cyan+
     (2 ** 20).toString(2).split('').map((_, i) => i / 20 <= currentProgress / totalProgress ? "|" : " ").join('')
-  +yellow }]${magenta} - ${(100 * currentProgress / totalProgress).toFixed(2)}% ${word+reset}`
+  +yellow }]${magenta} - ${(100 * currentProgress / totalProgress).toFixed(2)}% ${word+reset}`;
   
   await new Promise(next => process.stdout.clearLine(0, next))
   await new Promise(next => process.stdout.cursorTo(0, next))
