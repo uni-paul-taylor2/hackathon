@@ -369,47 +369,58 @@ async function generateQuizFromParagraph(title) {
 
 }
 
+// main function - The start of the program
 (async () => {
   let attempts = 0;
   let errorMsg = "";
+
   while (true) {
-    if (errorMsg)
+    if (errorMsg) {
       console.log(systemErrorColour + errorMsg + resetColours);
-    errorMsg = "";
+      errorMsg = "";
+    }
 
     const optionsText = "What do you want to do? (enter option letters):\nA) Create quiz from popular book or course\nB) Create quiz from large text paragraph or excerpt\nC) View created excerpt\nD) Attempt quiz from existing topics";
     const input = await getUserInput(optionsText);
+
     if (input.length > 0) {
       const choice = input[0].toLowerCase();
-      if (choice === "a") {
-        try {
-          await generateQuizFromBookorCourse(attempts);
-        } catch (e) {
-          errorMsg = e;
-        }
-      } else if (choice === "b") {
-        try {
-          await generateQuizFromParagraph();
-        } catch (e) {
-          errorMsg = e;
-        }
-      } else if (choice === "c") {
-        try {
-          await viewCreatedExcerpts();
-        } catch (e) {
-          errorMsg = e;
-        }
-      } else if (choice === "d") {
-        try {
-          await attemptExistingQuiz();
-        } catch (e) {
-          errorMsg = e;
-        }
-      } else {
-        errorMsg = "This choice is not available.";
-      }
-    }
 
-    attempts++;
+      switch (choice) {
+        case "a":
+          try {
+            await generateQuizFromBookorCourse(attempts);
+          } catch (e) {
+            errorMsg = e;
+          }
+          break;
+        case "b":
+          try {
+            await generateQuizFromParagraph();
+          } catch (e) {
+            errorMsg = e;
+          }
+          break;
+        case "c":
+          try {
+            await viewCreatedExcerpts();
+          } catch (e) {
+            errorMsg = e;
+          }
+          break;
+        case "d":
+          try {
+            await attemptExistingQuiz();
+          } catch (e) {
+            errorMsg = e;
+          }
+          break;
+        default:
+          errorMsg = "This choice is not available.";
+          break;
+      }
+
+      attempts++;
+    }
   }
-})()
+})();
