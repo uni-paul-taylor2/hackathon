@@ -1,4 +1,7 @@
 {
+  "scripts": {
+    "start": "node main.js"
+  },
   "dependencies": {
     "openai": "^3.2.1"
   },
