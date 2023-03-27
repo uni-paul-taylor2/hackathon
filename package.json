@@ -1,7 +1,23 @@
 {
+  "name": "quizical",
+  "author": "Null Method Programming Concepts",
+  "version": "0.0.3",
   "scripts": {
-    "start": "node main.js"
+    "run": "node main.js",
+    "start": "node main.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/uni-paul-taylor2/hackathon.git"
+  },
+  "keywords": [
+    "ai",
+    "quiz",
+    "study",
+    "education",
+    "hackathon"
+  ],
   "dependencies": {
     "openai": "^3.2.1"
   },

@@ -223,11 +223,8 @@ async function generateQuizFromBookorCourse(attempts, title) {
   await sleep(500);
   try {
     const topic = Object.values(content).random()
-    //console.log(topic,'1234',Object.values(topic),1232131223) //adf
     const questions = Object.values(topic).scrambled()
-    //console.log(questions,54)
     for (const question of questions) {
-      //console.log(questions,question) //adf
       const options = question.options.scrambled()
       const mapping = ["A", "B", "C", "D", "E"]
       const correctAnswerIndex = options.findIndex(elem => elem.length === 2)
@@ -239,8 +236,9 @@ async function generateQuizFromBookorCourse(attempts, title) {
 
       const result = await getUserInput(thePrompt);
 
-      const isCorrect = (result.toLowerCase() === correctAnswer.toLowerCase()) || (result.toLowerCase() === correctAnswerLetter.toLowerCase()) || (result.toLowerCase() === correctAnswerString.toLowerCase())
-
+      const isCorrect = [correctAnswer,correctAnswerLetter,correctAnswerString]
+      .some(txt=>txt.toLowerCase() === result.toLowerCase());
+      
       if (isCorrect) question.correct++;
       else question.incorrect++;
 
@@ -284,9 +282,9 @@ async function attemptExistingQuiz() {
   const allTopics = [...excerpts, ...entries];
 
   if (allTopics.length == 0) {
-    console.log("No quizzes have been created yet. Create one now!\n");
+    console.log(wrongColour+"No quizzes have been created yet. Create one now!\n"+resetColours);
   } else {
-    console.log("Existing topics:\n\n" + allTopics.map(topic => "- " + topic).join("\n"));
+    console.log(systemMessageColour+"Existing topics:\n\n" +answerColour+ allTopics.map(topic => "- " + topic).join("\n")+resetColours);
 
 
 
@@ -326,11 +324,8 @@ async function generateQuizFromParagraph(title) {
   await sleep(500);
   try {
     const topic = content;
-    //console.log(topic,'1234',Object.values(topic),1232131223) //adf
     const questions = Object.values(topic.questions);
-    //console.log(questions,54)
     for (const question of questions) {
-      //console.log(questions,question) //adf
       const options = question.options.scrambled()
       const mapping = ["A", "B", "C", "D", "E"]
       const correctAnswerIndex = options.findIndex(elem => elem.length === 2)
@@ -343,8 +338,9 @@ async function generateQuizFromParagraph(title) {
 
       const result = await getUserInput(thePrompt);
 
-      const isCorrect = (result.toLowerCase() === correctAnswer.toLowerCase()) || (result.toLowerCase() === correctAnswerLetter.toLowerCase()) || (result.toLowerCase() === correctAnswerString.toLowerCase())
-
+      const isCorrect = [correctAnswer,correctAnswerLetter,correctAnswerString]
+      .some(txt=>txt.toLowerCase() === result.toLowerCase());
+      
       if (isCorrect) question.correct++;
       else question.incorrect++;
 
@@ -382,45 +378,18 @@ async function generateQuizFromParagraph(title) {
 
     const optionsText = "What do you want to do? (enter option letters):\nA) Create quiz from popular book or course\nB) Create quiz from large text paragraph or excerpt\nC) View created excerpt\nD) Attempt quiz from existing topics";
     const input = await getUserInput(optionsText);
-
-    if (input.length > 0) {
-      const choice = input[0].toLowerCase();
-
-      switch (choice) {
-        case "a":
-          try {
-            await generateQuizFromBookorCourse(attempts);
-          } catch (e) {
-            errorMsg = e;
-          }
-          break;
-        case "b":
-          try {
-            await generateQuizFromParagraph();
-          } catch (e) {
-            errorMsg = e;
-          }
-          break;
-        case "c":
-          try {
-            await viewCreatedExcerpts();
-          } catch (e) {
-            errorMsg = e;
-          }
-          break;
-        case "d":
-          try {
-            await attemptExistingQuiz();
-          } catch (e) {
-            errorMsg = e;
-          }
-          break;
-        default:
-          errorMsg = "This choice is not available.";
-          break;
-      }
-
-      attempts++;
+    const choices={
+      a: _=>generateQuizFromBookorCourse(attempts),
+      b: generateQuizFromParagraph,
+      c: viewCreatedExcerpts,
+      d: attemptExistingQuiz
     }
+    const choice = input[0].toLowerCase();
+    if(choices[choice]){
+      try{await choices[choice]()}
+      catch(err){errorMsg = err}
+    }
+    else errorMsg = "This choice is not available.";
+    attempts++;
   }
 })();
