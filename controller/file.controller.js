@@ -17,7 +17,12 @@ const upload = async (req, res) => {
         // Extract content from PDF
         const data = await fs.promises.readFile(filePath);
         const pdf = await pdfParse(data);
-        const contents = pdf.text.split(/(?:\r\n|\r|\n){2}/g);
+        const contents = pdf.text.split(/(?:\r\n|\r|\n){2}/g)
+            .filter((text) => {
+                // Match headings containing "Course Content" or "Learning Outcome"
+                const regex = /^(?=.*\b(Course Content|Learning Outcome(s)?)\b).*$/mi;
+                return regex.test(text);
+            });
 
         // Save course content to a text file
         await fs.promises.writeFile(outputPath, contents.join('\n\n'));
