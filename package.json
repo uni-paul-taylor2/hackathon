@@ -5,6 +5,7 @@
   "scripts": {
     "run": "node main.js",
     "start": "node main.js",
+    "server-run": "node server.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
