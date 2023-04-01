@@ -1,4 +1,6 @@
 const uploadFile = require("../middleware/upload");
+const fs = require("fs");
+const baseUrl = "http://localhost:8080/files/";
 
 const upload = async (req, res) => {
     try{
@@ -31,7 +33,8 @@ const getListFiles = (req, res) => {
             });
         }
         let fileInfos = [];
-        files.foreach((file) => {
+        
+        files.forEach((file) => {
             fileInfos.push({
                 name: file,
                 url: baseUrl + file,
