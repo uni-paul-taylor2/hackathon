@@ -1,7 +1,8 @@
 const uploadFile = require("../middleware/upload");
 const fs = require("fs");
 const baseUrl = "http://localhost:8080/files/";
-const pdfjs = require("pdfjs-dist");
+
+const pdfParse = require('pdf-parse');
 
 const upload = async (req, res) => {
     try {
@@ -15,19 +16,12 @@ const upload = async (req, res) => {
 
         // Extract content from PDF
         const data = await fs.promises.readFile(filePath);
-        const doc = await pdfjs.getDocument(data).promise;
-        const numPages = doc.numPages;
-        let contents = [];
-        for (let i = 1; i <= numPages; i++) {
-            const page = await doc.getPage(i);
-            const textContent = await page.getTextContent();
-            const pageContent = textContent.items.map(item => item.str).join(" ");
-            contents.push(pageContent);
-        }
+        const pdf = await pdfParse(data);
+        const contents = pdf.text.split(/(?:\r\n|\r|\n){2}/g);
 
         // Save course content to a text file
         await fs.promises.writeFile(outputPath, contents.join('\n\n'));
-        
+
         res.status(200).send({
             message: "Uploaded the file successfully: " + req.file.originalname
         });
